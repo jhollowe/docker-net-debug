@@ -1,6 +1,6 @@
 # Based on https://blog.oddbit.com/post/2020-09-25-building-multi-architecture-im/
 
-name: Build and push image to Docker Hub
+name: Build and push images to registries
 
 on:
   push:
@@ -16,19 +16,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-push:
     runs-on: "ubuntu-latest"
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Parse Repo Name
+        id: repo-name
+        run: |
+          echo "::set-output name=repo::${GITHUB_REPOSITORY#*/}"
+          echo "::set-output name=repo-clean::${GITHUB_REPOSITORY#*/docker-}"
+          echo "::set-output name=org::${GITHUB_REPOSITORY%/*}"
+          printf "::group::Outputs:\nrepo: ${GITHUB_REPOSITORY#*/}\nrepo-clean: ${GITHUB_REPOSITORY#*/docker-}\norg: ${GITHUB_REPOSITORY%/*}\n::endgroup::"
 
       - name: Docker meta
         id: docker_meta
         uses: docker/metadata-action@v4
         with:
           images: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${GITHUB_REPOSITORY#*/}
-            ghcr.io/${{ secrets.DOCKERHUB_USERNAME }}/${GITHUB_REPOSITORY#*/}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ steps.repo-name.outputs.repo-clean }}
+            ghcr.io/${{ steps.repo-name.outputs.org }}/${{ steps.repo-name.outputs.repo-clean }}
           tags: |
             type=sha,prefix=
             type=edge,branch=main
