@@ -35,37 +35,48 @@ jobs:
           echo "::set-output name=org::${GITHUB_REPOSITORY%/*}"
           printf "::group::Outputs:\nrepo: ${GITHUB_REPOSITORY#*/}\nrepo_clean: ${GITHUB_REPOSITORY#*/docker-}\norg: ${GITHUB_REPOSITORY%/*}\n::endgroup::"
 
-      - name: configure extra tags
-        id: tags
+      - name: configure metadata for building
+        id: meta
         run: |
-            # if this is the default OS, add tags without the OS listed
+            # if this is the default OS
             if [ ${{ matrix.os }} == $DEFAULT_OS ]; then
-              echo "::set-output name=extra_tags::type=sha,prefix=
-                type=edge,branch=main
-                type=semver,pattern={{major}}.{{minor}}.{{patch}}
-                type=semver,pattern={{major}}.{{minor}}
-                type=semver,pattern={{major}}
-                type=ref,event=pr"
+              echo "::set-output name=is_default_os::true"
             else
-              echo "::set-output name=extra_tags::"
+              echo "::set-output name=is_default_os::false"
             fi
 
-      - name: Docker meta
+      - name: Docker metadata (OS tagged)
         id: docker_meta
         uses: docker/metadata-action@v4
         with:
           images: |
             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ steps.repo-name.outputs.repo_clean }}
             ghcr.io/${{ steps.repo-name.outputs.org }}/${{ steps.repo-name.outputs.repo_clean }}
+          flavor: |
+            suffix=-${{ matrix.os }},onlatest=true
           tags: |
-            type=sha,prefix=,suffix=-${{ matrix.os }}
-            type=edge,branch=main,suffix=-${{ matrix.os }}
-            type=semver,pattern={{major}}.{{minor}}.{{patch}},suffix=-${{ matrix.os }}
-            type=semver,pattern={{major}}.{{minor}},suffix=-${{ matrix.os }}
-            type=semver,pattern={{major}},suffix=-${{ matrix.os }}
-            type=ref,event=pr,suffix=-${{ matrix.os }}
-            ${{ steps.tags.outputs.extra_tags }}
-          flavor:
+            type=sha,prefix=
+            type=edge,branch=main
+            type=semver,pattern={{major}}.{{minor}}.{{patch}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=ref,event=pr
+
+      - name: Docker metadata (Default OS)
+        id: docker_meta_default
+        if: matrix.os == env.DEFAULT_OS
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ steps.repo-name.outputs.repo_clean }}
+            ghcr.io/${{ steps.repo-name.outputs.org }}/${{ steps.repo-name.outputs.repo_clean }}
+          tags: |
+            type=sha,prefix=
+            type=edge,branch=main
+            type=semver,pattern={{major}}.{{minor}}.{{patch}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=ref,event=pr
 
       - name: Login to DockerHub
         if: github.event_name != 'pull_request'
@@ -95,5 +106,7 @@ jobs:
           file: ./Dockerfile.${{ matrix.os }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.docker_meta.outputs.tags }}
+          tags: |
+            ${{ steps.docker_meta.outputs.tags }}
+            ${{ steps.docker_meta_default.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
