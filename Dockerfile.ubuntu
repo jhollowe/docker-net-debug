@@ -1,5 +1,7 @@
-FROM ubuntu:20.04
+ARG OS_VERSION=20.04
+FROM ubuntu:${OS_VERSION}
 
+# packages are ordered alphabetically by the Ubuntu package names
 RUN apt-get update \
   && apt-get install -y \
   curl \
@@ -8,13 +10,17 @@ RUN apt-get update \
   iperf \
   iperf3 \
   iproute2 \
+  iputils-arping \
+  iputils-clockdiff \
   iputils-ping \
+  iputils-tracepath \
   less \
   nano \
   ncat \
   netcat \
   nmap \
   openssh-client \
+  tcpdump \
   telnet \
   wget \
   && apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

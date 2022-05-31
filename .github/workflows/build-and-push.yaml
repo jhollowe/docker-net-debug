@@ -18,6 +18,11 @@ on:
 jobs:
   build-and-push:
     runs-on: "ubuntu-latest"
+    env:
+      DEFAULT_OS: ubuntu
+    strategy:
+      matrix:
+        os: [ubuntu, alpine]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -26,24 +31,40 @@ jobs:
         id: repo-name
         run: |
           echo "::set-output name=repo::${GITHUB_REPOSITORY#*/}"
-          echo "::set-output name=repo-clean::${GITHUB_REPOSITORY#*/docker-}"
+          echo "::set-output name=repo_clean::${GITHUB_REPOSITORY#*/docker-}"
           echo "::set-output name=org::${GITHUB_REPOSITORY%/*}"
-          printf "::group::Outputs:\nrepo: ${GITHUB_REPOSITORY#*/}\nrepo-clean: ${GITHUB_REPOSITORY#*/docker-}\norg: ${GITHUB_REPOSITORY%/*}\n::endgroup::"
+          printf "::group::Outputs:\nrepo: ${GITHUB_REPOSITORY#*/}\nrepo_clean: ${GITHUB_REPOSITORY#*/docker-}\norg: ${GITHUB_REPOSITORY%/*}\n::endgroup::"
+
+      - name: configure extra tags
+        id: tags
+        run: |
+            # if this is the default OS, add tags without the OS listed
+            if [ ${{ matrix.os }} == $DEFAULT_OS ]; then
+              echo "::set-output name=extra_tags::type=sha,prefix=
+                type=edge,branch=main
+                type=semver,pattern={{major}}.{{minor}}.{{patch}}
+                type=semver,pattern={{major}}.{{minor}}
+                type=semver,pattern={{major}}
+                type=ref,event=pr"
+            else
+              echo "::set-output name=extra_tags::"
+            fi
 
       - name: Docker meta
         id: docker_meta
         uses: docker/metadata-action@v4
         with:
           images: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ steps.repo-name.outputs.repo-clean }}
-            ghcr.io/${{ steps.repo-name.outputs.org }}/${{ steps.repo-name.outputs.repo-clean }}
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ steps.repo-name.outputs.repo_clean }}
+            ghcr.io/${{ steps.repo-name.outputs.org }}/${{ steps.repo-name.outputs.repo_clean }}
           tags: |
-            type=sha,prefix=
-            type=edge,branch=main
-            type=semver,pattern={{major}}.{{minor}}.{{patch}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=ref,event=pr
+            type=sha,prefix=,suffix=-${{ matrix.os }}
+            type=edge,branch=main,suffix=-${{ matrix.os }}
+            type=semver,pattern={{major}}.{{minor}}.{{patch}},suffix=-${{ matrix.os }}
+            type=semver,pattern={{major}}.{{minor}},suffix=-${{ matrix.os }}
+            type=semver,pattern={{major}},suffix=-${{ matrix.os }}
+            type=ref,event=pr,suffix=-${{ matrix.os }}
+            ${{ steps.tags.outputs.extra_tags }}
           flavor:
 
       - name: Login to DockerHub
@@ -71,7 +92,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile.${{ matrix.os }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.docker_meta.outputs.tags }}

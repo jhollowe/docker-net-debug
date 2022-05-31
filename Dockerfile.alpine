@@ -1,0 +1,25 @@
+ARG OS_VERSION=3.16
+FROM alpine:${OS_VERSION}
+
+# packages are ordered alphabetically by the Ubuntu package names
+RUN apk add --no-cache \
+  bash \
+  curl \
+  bind-tools \
+  iftop \
+  iperf \
+  iperf3 \
+  iproute2 \
+  iputils \
+  less \
+  nano \
+  nmap-ncat \
+  netcat-openbsd \
+  nmap \
+  openssh-client \
+  tcpdump \
+  busybox-extras \
+  wget \
+  && rm -rf /tmp/* /var/tmp/*
+
+CMD ["/bin/bash"]
